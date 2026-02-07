@@ -2,15 +2,13 @@ from flask import Flask, request, jsonify, render_template_string
 import os
 import PyPDF2
 from pptx import Presentation
-import google.generativeai as genai
+from openai import OpenAI
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# Gemini API setup
-genai.configure(api_key=os.environ.get('GOOGLE_API_KEY'))
-
-model = genai.GenerativeModel('gemini-1.5-flash')  # Free tier model
+# OpenAI API setup
+client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
 
 ALLOWED_EXTENSIONS = {'pdf', 'pptx'}
 
@@ -35,13 +33,14 @@ def extract_text_from_pptx(file_path):
     return text
 
 def generate_notes(text):
-    prompt = (
-        "You are a helpful assistant that generates systematic notes from document content. "
-        "Structure the notes with headings, bullet points, key insights, and summaries.\n\n"
-        f"Generate systematic notes from this content: {text[:8000]}"  # Limit to avoid token limits; expand as needed
+    response = client.chat.completions.create(
+        model='gpt-4o-mini',  # Affordable and effective model
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that generates systematic notes from document content. Structure the notes with headings, bullet points, key insights, and summaries."},
+            {"role": "user", "content": f"Generate systematic notes from this content: {text[:8000]}" }  # Limit to avoid token limits; expand as needed
+        ]
     )
-    response = model.generate_content(prompt)
-    return response.text
+    return response.choices[0].message.content
 
 @app.route('/')
 def index():
@@ -53,7 +52,7 @@ def generate():
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
     if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+        return jupytext({'error': 'No selected file'}), 400
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         file_path = os.path.join('/tmp', filename)  # Vercel uses /tmp for temp files
