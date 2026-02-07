@@ -7,8 +7,11 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# OpenAI API setup
-client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+# Groq API setup (OpenAI-compatible)
+client = OpenAI(
+    api_key=os.environ.get('GROQ_API_KEY'),
+    base_url='https://api.groq.com/openai/v1'
+)
 
 ALLOWED_EXTENSIONS = {'pdf', 'pptx'}
 
@@ -34,7 +37,7 @@ def extract_text_from_pptx(file_path):
 
 def generate_notes(text):
     response = client.chat.completions.create(
-        model='gpt-4o-mini',  # Affordable and effective model
+        model='mixtral-8x7b-32768',  # Fast, capable model on Groq
         messages=[
             {"role": "system", "content": "You are a helpful assistant that generates systematic notes from document content. Structure the notes with headings, bullet points, key insights, and summaries."},
             {"role": "user", "content": f"Generate systematic notes from this content: {text[:8000]}" }  # Limit to avoid token limits; expand as needed
@@ -52,7 +55,7 @@ def generate():
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
     if file.filename == '':
-        return jupytext({'error': 'No selected file'}), 400
+        return jsonify({'error': 'No selected file'}), 400
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         file_path = os.path.join('/tmp', filename)  # Vercel uses /tmp for temp files
