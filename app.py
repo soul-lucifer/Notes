@@ -2,16 +2,15 @@ from flask import Flask, request, jsonify, render_template_string
 import os
 import PyPDF2
 from pptx import Presentation
-from openai import OpenAI
+import google.generativeai as genai
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# Grok API setup (compatible with OpenAI client)
-client = OpenAI(
-    api_key=os.environ.get('GROK_API_KEY'),
-    base_url='https://api.x.ai/v1'
-)
+# Gemini API setup
+genai.configure(api_key=os.environ.get('GOOGLE_API_KEY'))
+
+model = genai.GenerativeModel('gemini-1.5-flash')  # Free tier model
 
 ALLOWED_EXTENSIONS = {'pdf', 'pptx'}
 
@@ -36,14 +35,13 @@ def extract_text_from_pptx(file_path):
     return text
 
 def generate_notes(text):
-    response = client.chat.completions.create(
-        model='grok-4.1-fast-reasoning',  # Use a suitable Grok model
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant that generates systematic notes from document content. Structure the notes with headings, bullet points, key insights, and summaries."},
-            {"role": "user", "content": f"Generate systematic notes from this content: {text[:8000]}" }  # Limit to avoid token limits; expand as needed
-        ]
+    prompt = (
+        "You are a helpful assistant that generates systematic notes from document content. "
+        "Structure the notes with headings, bullet points, key insights, and summaries.\n\n"
+        f"Generate systematic notes from this content: {text[:8000]}"  # Limit to avoid token limits; expand as needed
     )
-    return response.choices[0].message.content
+    response = model.generate_content(prompt)
+    return response.text
 
 @app.route('/')
 def index():
